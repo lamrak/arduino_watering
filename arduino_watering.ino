@@ -1,10 +1,12 @@
 #include <SPI.h>
 #include <WiFi.h>
 
-#define PUMP_PIN 7
+#define PUMP_PIN 4
 #define MOISTURE_PIN A0
 #define LIGHT_PIN A1
 #define LEVEL_PIN A2
+
+#define WATERING_MILLIS 2000
 
 #define STATE_STANDBY 0
 #define STATE_WATERING 1
@@ -19,10 +21,10 @@
 #define CRITICAL_WATER_LEVEL 600
 
 WiFiServer server(81);
-WiFiClient client;
 
 String url;
 String request;
+String json;
 
 int state = STATE_STANDBY;
 int wifiStatus = WL_IDLE_STATUS;
@@ -37,8 +39,9 @@ boolean gotWater;
 
 void setup() {
   Serial.begin(9600);
-  pinMode(LED_BUILTIN, OUTPUT);
-  pinMode(MOISTURE_PIN, INPUT);
+  pinMode(MOISTURE_PIN, OUTPUT);
+  pinMode(LIGHT_PIN, OUTPUT);
+  pinMode(LEVEL_PIN, OUTPUT);
   
   connectToWiFi();                     
 }
@@ -52,132 +55,99 @@ void connectToWiFi() {
 }
 
 void loop() {
-  switch (state) {
-    case STATE_STANDBY:
-      if (webRequest() == 1 && gotWater)
-        state = STATE_WATERING;
-      else if (webRequest() == 2)
-        state = STATE_SENDPAGE;
-      if (!gotWater)
-        state = STATE_NOWATER;
-      break;
-      
-    case STATE_WATERING:
-        watering();
-        state = STATE_STANDBY;
-      break;
-      
-    case STATE_NOWATER:
-      if (webRequest() == WEB_CLIMATE_REQUEST)
-        state = STATE_SENDPAGE;
-      else if (checkWater())
-        state = STATE_STANDBY;
-      break;
-      
-    case STATE_SENDPAGE:
-      sendPage();
-      state = STATE_STANDBY;
-      break;
-  }
+  checkServerRequest();
 }
 
 void watering() {
   Serial.println("Watering"); 
-//  digitalWrite(PUMP_PIN, HIGH);
-//  delay(WATERING_MILLIS);
 //  digitalWrite(PUMP_PIN, LOW);
+//  delay(WATERING_MILLIS);
+//  digitalWrite(PUMP_PIN, HIGH);
 }
 
 boolean checkClimate() {
   Serial.println("Read climat detectors"); 
   moistureValue = analogRead(MOISTURE_PIN);
 //  temperatureValue = analogRead(TEMP_PIN);
+  levelValue = analogRead(LEVEL_PIN);
   lightnessValue = analogRead(LIGHT_PIN);
+
+  json = "";
+  json += "{\"moistureValue\":\"";
+  json += moistureValue;
+  json += "\",\"temperatureValue\":\"0\"";
+  json += ",\"lightnessValue\":\"";
+  json += lightnessValue;
+  json += "\",\"levelValue\":\"";
+  json += levelValue;
+  json += "\"}";
+
+  Serial.println(json); 
+
+  return true;
 }
 
 boolean checkWater() {
-    levelValue = analogRead(LEVEL_PIN);
-//  digitalWrite(WATER_OUT_PIN, LOW);
-  if (levelValue > HALF_WATER_TANK)
-    gotWater = true;
-  else if (levelValue > CRITICAL_WATER_LEVEL)
+//  Serial.print("Check Water: ");
+  levelValue = analogRead(LEVEL_PIN);
+//  Serial.print(levelValue);
+//  Serial.println("");
+
+  if ((levelValue > HALF_WATER_TANK) || 
+      (levelValue > CRITICAL_WATER_LEVEL))
     gotWater = true;
   else
     gotWater = false;
-//  digitalWrite(WATER_OUT_PIN, HIGH);
 
   return gotWater; //gotWater;
 }
 
-int webRequest() {
-  Serial.println("Web Request"); 
-  client = server.available();
-  request = "";
+int checkServerRequest() {
+  WiFiClient client = server.available();   // listen for incoming clients
 
-  if (client) {
-    Serial.println("new client");
-    String currentLine = "";
-    boolean currentLineIsBlank = false;
-          
-    while (client.connected()) {
-      
-      if (client.available()) {
-        char c = client.read();
+  if (client) {                             // if you get a client,
+    Serial.println("new client");           // print a message out the serial port
+    String currentLine = "";                // make a String to hold incoming data from the client
+    while (client.connected()) {            // loop while the client's connected
+      if (client.available()) {             // if there's bytes to read from the client,
+        char c = client.read();             // read a byte, then
+        Serial.write(c);                    // print it out the serial monitor
+        if (c == '\n') {                    // if the byte is a newline character
+          if (currentLine.length() == 0) {
+            prepareSendPage(client);
+            break;         
+          } else currentLine = "";
+        } else if (c != '\r') {   
+          currentLine += c;
+        }
 
-        if (request.length() < 100)
-          request += c;
-        if (request.indexOf("?water") > 0)
-          return WEB_FORCED_WATERING;
-        if (c == '\n')
-          currentLineIsBlank = true;
-        else if (c != '\r')
-          currentLineIsBlank = false;
-        if (c == '\n' && currentLineIsBlank)
-          return WEB_CLIMATE_REQUEST;
+        if (currentLine.endsWith("GET /W")) {
+          watering();
+        }
       }
     }
-    
-    delay(1);
+    // close the connection:
     client.stop();
     Serial.println("client disonnected");
   }
-
-  return WEB_NO_CLIENT;
 }
 
-void sendPage()
-{
-  if (client) {
-    while (client.connected()) {
-      Serial.println("Print html page");
-      client.println("HTTP/1.1 200 OK");
-      client.println("Content-Type: text/html");
-      client.println("Connection: close");  
-      client.println("Refresh: 5;url=\"http://192.168.0.150\"");  
-      client.println();
-      client.println("<!DOCTYPE HTML>");
-      client.println("<html>");
-      client.println("Moisture humidity: ");
-      client.println(getStringForMoistureValue());
-//      client.println("<br />Temperature: ");
-//      client.println(temperatureValue);
-      client.println("<br />Lightness: ");
-      client.println(getLightnessAsString());
-      if (gotWater) {
-        client.println("<br />Water ok<br />");
-        client.println("<a href=\"/?water\"\">Forced watering</a>");
-      } else {
-        client.println("No water!");
-      }
-      
-      client.println("</html>");
-      break;
-    }
-  }
+void prepareSendPage(WiFiClient client) {
+  checkClimate();
+  sendPage(client);
+}
 
+void sendPage(WiFiClient client) {
+  Serial.println("Send Page");
+
+  // HTTP headers always start with a response code (e.g. HTTP/1.1 200 OK)
+  // and a content-type so the client knows what's coming, then a blank line:    
+  client.println("HTTP/1.1 200 OK");
+  client.println("Content-type:text/html");
+  client.println();
+  client.println(json);
+  client.println();
   delay(1);
-  client.stop();
-  Serial.println("client disonnected");
 }
 
 void isWiFiEnabled() {
@@ -188,7 +158,8 @@ void isWiFiEnabled() {
 }
 
 void checkFirmwareVersion() {
-  if (WiFi.firmwareVersion() != "1.1.0")
+  String fv = WiFi.firmwareVersion();
+  if( fv != "1.1.0" )
     Serial.println("Please upgrade the firmware");
 }
 
@@ -196,7 +167,7 @@ void attemptToConnect() {
   char ssid[] = "Valtech_";
   char pass[] = "2015Valtech";
   while (wifiStatus != WL_CONNECTED) { 
-    Serial.print("Attempting to connect to Network...");  
+    Serial.println("Attempting to connect to Network...");  
     wifiStatus = WiFi.begin(ssid, pass);
     delay(10000);
   } 
@@ -215,7 +186,7 @@ void printWifiStatus() {
   Serial.print(WiFi.RSSI());
   Serial.println(" dBm");
   
-  url = "http://192.168.11.117:81";
+  url = "http://192.168.10.76:81/";
 }
 
 /* *
@@ -225,31 +196,31 @@ void printWifiStatus() {
  */
 String getStringForMoistureValue() {
   if (moistureValue > 950)
-    return "Like a ocean in the pot";
+    return "Critical Dry soil";
   if (moistureValue > 850)
-    return "Like a swamp in the pot";
+    return "Dry soil";
   if (moistureValue > 800)
-    return "Soggy soil";
+    return "Partially dry soil";
   if (moistureValue > 700)
-    return "Strong Wet soil";
+    return "Partially wet soil";
   if (moistureValue > 600)
     return "Normal Wet soil";
   if (moistureValue > 500)
-    return "Partially wet soil";
+    return "Strong Wet soil";
   if (moistureValue > 400)
-    return "Partially dry soil";
+    return "Soggy soil";
   if (moistureValue > 200)
-    return "Dry soil";
+    return "Like a swamp in the pot";
   if (moistureValue > 0)
-    return "Critical Dry soil";
+    return "Like a ocean in the pot";
 }
 
 String getLightnessAsString() {
-  if (lightnessValue > 900)
+  if (lightnessValue > 1000)
     return "Night time";
-  if (lightnessValue > 700)
+  if (lightnessValue > 800)
     return "Gray: cloudly or morning/evening";
-  if (moistureValue > 400)
+  if (moistureValue > 600)
     return "Day light";
   if (moistureValue > 0)
     return "Sunshine";
