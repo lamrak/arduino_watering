@@ -6,7 +6,7 @@
 #define LIGHT_PIN A1
 #define LEVEL_PIN A2
 
-#define WATERING_MILLIS 2000
+#define WATERING_MILLIS 4000
 
 #define STATE_STANDBY 0
 #define STATE_WATERING 1
@@ -42,6 +42,11 @@ void setup() {
   pinMode(MOISTURE_PIN, OUTPUT);
   pinMode(LIGHT_PIN, OUTPUT);
   pinMode(LEVEL_PIN, OUTPUT);
+
+  pinMode(LED_BUILTIN, OUTPUT);
+  pinMode(PUMP_PIN, OUTPUT);
+
+  digitalWrite(PUMP_PIN, HIGH);
   
   connectToWiFi();                     
 }
@@ -60,9 +65,11 @@ void loop() {
 
 void watering() {
   Serial.println("Watering"); 
-//  digitalWrite(PUMP_PIN, LOW);
-//  delay(WATERING_MILLIS);
-//  digitalWrite(PUMP_PIN, HIGH);
+  digitalWrite(LED_BUILTIN, HIGH);
+  digitalWrite(PUMP_PIN, LOW);
+  delay(WATERING_MILLIS);
+  digitalWrite(LED_BUILTIN, LOW); 
+  digitalWrite(PUMP_PIN, HIGH);
 }
 
 boolean checkClimate() {
