@@ -82,7 +82,7 @@ boolean checkClimate() {
   json = "";
   json += "{\"moistureValue\":\"";
   json += moistureValue;
-  json += "\",\"temperatureValue\":\"0\"";
+  json += "\",\"temperatureValue\":\"21\"";
   json += ",\"lightnessValue\":\"";
   json += lightnessValue;
   json += "\",\"levelValue\":\"";
@@ -196,39 +196,3 @@ void printWifiStatus() {
   url = "http://192.168.10.76:81/";
 }
 
-/* *
-- Soggy soil -  moisture between 0 and 500;
-- Wet soil   - moisture between 500 and 800;
-- Dry soil   - moisture between 800-1023;
- */
-String getStringForMoistureValue() {
-  if (moistureValue > 950)
-    return "Critical Dry soil";
-  if (moistureValue > 850)
-    return "Dry soil";
-  if (moistureValue > 800)
-    return "Partially dry soil";
-  if (moistureValue > 700)
-    return "Partially wet soil";
-  if (moistureValue > 600)
-    return "Normal Wet soil";
-  if (moistureValue > 500)
-    return "Strong Wet soil";
-  if (moistureValue > 400)
-    return "Soggy soil";
-  if (moistureValue > 200)
-    return "Like a swamp in the pot";
-  if (moistureValue > 0)
-    return "Like a ocean in the pot";
-}
-
-String getLightnessAsString() {
-  if (lightnessValue > 1000)
-    return "Night time";
-  if (lightnessValue > 800)
-    return "Gray: cloudly or morning/evening";
-  if (moistureValue > 600)
-    return "Day light";
-  if (moistureValue > 0)
-    return "Sunshine";
-}
