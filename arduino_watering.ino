@@ -6,7 +6,7 @@
 #define LIGHT_PIN A1
 #define LEVEL_PIN A2
 
-#define WATERING_MILLIS 4000
+#define WATERING_MILLIS 10000
 
 #define STATE_STANDBY 0
 #define STATE_WATERING 1
@@ -35,7 +35,6 @@ int lightnessValue;
 int levelValue;
   
 boolean gotWater;
-
 
 void setup() {
   Serial.begin(9600);
@@ -171,8 +170,8 @@ void checkFirmwareVersion() {
 }
 
 void attemptToConnect() {
-  char ssid[] = "Valtech_";
-  char pass[] = "2015Valtech";
+  char ssid[] = "L&N"; //"Valtech_";
+  char pass[] = ""; //"";
   while (wifiStatus != WL_CONNECTED) { 
     Serial.println("Attempting to connect to Network...");  
     wifiStatus = WiFi.begin(ssid, pass);
@@ -193,6 +192,6 @@ void printWifiStatus() {
   Serial.print(WiFi.RSSI());
   Serial.println(" dBm");
   
-  url = "http://192.168.10.76:81/";
+  url = "http://192.168.1.103:81/"; //"http://192.168.10.76:81/";
 }
 
